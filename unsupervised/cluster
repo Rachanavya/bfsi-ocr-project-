@@ -1,0 +1,47 @@
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
+
+# Sample Data: Financial Data (You can replace with actual extracted data)
+data = {
+    "Customer ID": [101, 102, 103, 104, 105, 106, 107, 108, 109, 110],
+    "Annual Income (INR)": [400000, 500000, 600000, 700000, 800000, 250000, 1000000, 550000, 300000, 750000],
+    "Loan Amount (INR)": [200000, 300000, 500000, 700000, 400000, 150000, 800000, 250000, 350000, 600000],
+    "Credit Score": [750, 680, 720, 650, 700, 600, 780, 640, 710, 690]
+}
+
+# Convert to DataFrame
+df = pd.DataFrame(data)
+
+# Selecting Features for Clustering
+features = df[["Annual Income (INR)", "Loan Amount (INR)", "Credit Score"]]
+
+# Normalize Data
+scaler = StandardScaler()
+scaled_features = scaler.fit_transform(features)
+
+# Apply K-Means Clustering
+kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)  # 3 clusters
+df["Cluster"] = kmeans.fit_predict(scaled_features)
+
+# Save clustered data to CSV
+df.to_csv("clustered_data.csv", index=False)
+print("✅ Clustered data saved as 'clustered_data.csv'")
+
+# Visualization: Bar Chart (Number of Customers per Cluster)
+plt.figure(figsize=(8, 5))
+sns.countplot(x=df["Cluster"], palette="coolwarm")
+plt.title("Number of Customers in Each Cluster")
+plt.xlabel("Cluster")
+plt.ylabel("Count")
+plt.show()
+
+# Visualization: Pie Chart (Percentage of Customers per Cluster)
+plt.figure(figsize=(7, 7))
+df["Cluster"].value_counts().plot.pie(autopct="%1.1f%%", cmap="coolwarm", startangle=90, shadow=True)
+plt.title("Percentage of Customers in Each Cluster")
+plt.ylabel("")  # Hide y-label
+plt.show()
