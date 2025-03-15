@@ -1,113 +1,46 @@
-import requests
 import pandas as pd
-from pymongo import MongoClient
+import numpy as np
+import seaborn as sns
 import matplotlib.pyplot as plt
+import yfinance as yf
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
 
-# Database connection
-def create_connection(uri, db_name):
-    """ Create a connection to the MongoDB database """
-    try:
-        client = MongoClient(uri)
-        db = client[db_name]
-        return db
-    except Exception as e:
-        print(f"Error connecting to MongoDB: {e}")
-        return None
+# Define stock symbols (You can replace these with any stock symbols)
+stock_symbols = ["AAPL", "GOOGL", "MSFT", "TSLA", "AMZN", "META", "NVDA", "NFLX", "IBM", "ORCL"]
 
-def store_data_in_mongodb(data, db, collection_name):
-    """ Store the data into a MongoDB collection """
-    collection = db[collection_name]
-    result = collection.insert_one(data)
-    print(f"Data inserted with ID: {result.inserted_id}")
+# Fetch stock market data
+stock_data = {}
+for stock in stock_symbols:
+    df = yf.download(stock, period="6mo", interval="1d")  # Last 6 months
+    stock_data[stock] = df["Close"].mean()  # Average Closing Price
 
-def fetch_stock_data(symbol, api_key):
-    """ Fetch stock data using Alpha Vantage API """
-    url = f"https://www.alphavantage.co/query"
-    params = {
-        "function": "TIME_SERIES_DAILY",
-        "symbol": symbol,
-        "apikey": api_key
-    }
+# Convert to DataFrame
+df_stocks = pd.DataFrame(list(stock_data.items()), columns=["Stock", "Avg Closing Price"])
 
-    try:
-        response = requests.get(url, params=params)
-        response.raise_for_status()
-        data = response.json()
-        if "Time Series (Daily)" in data:
-            return data["Time Series (Daily)"]
-        else:
-            print("Error: Unexpected response format.")
-            return None
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching stock data: {e}")
-        return None
+# Normalize Data
+scaler = StandardScaler()
+df_stocks["Scaled Price"] = scaler.fit_transform(df_stocks[["Avg Closing Price"]])
 
-def save_data_to_csv(data, file_path):
-    """ Save the stock data to a CSV file """
-    df = pd.DataFrame.from_dict(data, orient="index")
-    df.columns = ["Open", "High", "Low", "Close", "Volume"]
-    df.index.name = "Date"
-    df.reset_index(inplace=True)
-    df.to_csv(file_path, index=False)
-    print(f"Data saved to {file_path}")
-    return df
+# Apply K-Means Clustering
+kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)  # 3 clusters
+df_stocks["Cluster"] = kmeans.fit_predict(df_stocks[["Scaled Price"]])
 
-def visualize_stock_data(df):
-    """ Visualize the stock data """
-    df["Date"] = pd.to_datetime(df["Date"])
-    df.sort_values("Date", inplace=True)
+# Save clustered data to CSV
+df_stocks.to_csv("stock_clustered_data.csv", index=False)
+print("✅ Stock market clustered data saved as 'stock_clustered_data.csv'")
 
-    # Plot closing prices
-    plt.figure(figsize=(10, 6))
-    plt.plot(df["Date"], df["Close"].astype(float), label="Closing Price", color="darkblue")
-    plt.title("Stock Closing Prices Over Time", fontsize=16, color="white")
-    plt.xlabel("Date", fontsize=12, color="white")
-    plt.ylabel("Closing Price", fontsize=12, color="white")
-    plt.grid(alpha=0.3)
-    plt.legend()
-    plt.gca().set_facecolor("#333333")
-    plt.gcf().set_facecolor("#222222")
-    plt.tick_params(colors="white")
-    plt.tight_layout()
-    plt.show()
+# Visualization: Bar Chart (Number of Stocks per Cluster)
+plt.figure(figsize=(8, 5))
+sns.countplot(x=df_stocks["Cluster"], palette="coolwarm")
+plt.title("Number of Stocks in Each Cluster")
+plt.xlabel("Cluster")
+plt.ylabel("Count")
+plt.show()
 
-    # Additional Visualization: Volume Bar Chart
-    plt.figure(figsize=(10, 6))
-    plt.bar(df["Date"], df["Volume"].astype(float), color="darkgreen", alpha=0.7)
-    plt.title("Stock Volume Traded Over Time", fontsize=16, color="white")
-    plt.xlabel("Date", fontsize=12, color="white")
-    plt.ylabel("Volume", fontsize=12, color="white")
-    plt.grid(alpha=0.3)
-    plt.gca().set_facecolor("#333333")
-    plt.gcf().set_facecolor("#222222")
-    plt.tick_params(colors="white")
-    plt.tight_layout()
-    plt.show()
-
-def main():
-    # API and database setup
-    api_key = "57SSBQR23S8RB8V3"
-    symbols = ["AAPL", "GOOGL", "MSFT"]  # Automating with predefined stock ticker symbols
-    mongo_uri = "mongodb://localhost:27017/"
-    db_name = "semi_supervised"
-    collection_name = "api"
-
-    # Connect to MongoDB
-    db = create_connection(mongo_uri, db_name)
-
-    for symbol in symbols:
-        print(f"Fetching data for {symbol}...")
-        stock_data = fetch_stock_data(symbol, api_key)
-        if stock_data:
-            # Store raw data in MongoDB
-            store_data_in_mongodb({"symbol": symbol, "data": stock_data}, db, collection_name)
-
-            # Save data to CSV
-            csv_file = f"{symbol}_stock_data.csv"
-            df = save_data_to_csv(stock_data, csv_file)
-
-            # Visualize the stock data
-            visualize_stock_data(df)
-
-if __name__ == "__main__":
-    main()
+# Visualization: Pie Chart (Percentage of Stocks per Cluster)
+plt.figure(figsize=(7, 7))
+df_stocks["Cluster"].value_counts().plot.pie(autopct="%1.1f%%", cmap="coolwarm", startangle=90, shadow=True)
+plt.title("Percentage of Stocks in Each Cluster")
+plt.ylabel("")  # Hide y-label
+plt.show()
