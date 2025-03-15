@@ -1,0 +1,52 @@
+import streamlit as st
+import pytesseract
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from PIL import Image
+import os
+
+# Configure Tesseract Path (Change this for your system)
+pytesseract.pytesseract.tesseract_cmd = r'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'
+
+# Function to Extract Text from Image
+def extract_invoice_data(image):
+    text = pytesseract.image_to_string(image)
+    return text
+
+# Function to Process Extracted Text and Save to CSV
+def process_invoice_text(text):
+    lines = text.split("\n")
+    
+    # Simulated extraction logic (Modify based on OCR results)
+    invoice_data = []
+    for line in lines:
+        if "Invoice" in line or "Total" in line or "Amount" in line or "Tax" in line:
+            parts = line.split()
+            if len(parts) >= 2:
+                invoice_data.append({"Field": parts[0], "Value": parts[-1]})
+
+    df_invoice = pd.DataFrame(invoice_data)
+    df_invoice.to_csv("extracted_invoice_data.csv", index=False)
+    return df_invoice
+
+# Function to Visualize Extracted Data
+def visualize_data(df):
+    st.subheader("📊 Data Visualization")
+
+    # Convert 'Value' column to numeric for plotting (if possible)
+    df["Value"] = pd.to_numeric(df["Value"], errors='coerce')
+
+    # Bar Chart
+    plt.figure(figsize=(8, 5))
+    sns.barplot(x="Field", y="Value", data=df, palette="coolwarm")
+    plt.xticks(rotation=45)
+    plt.title("Invoice Data - Bar Chart")
+    st.pyplot(plt)
+
+    # Pie Chart
+    plt.figure(figsize=(6, 6))
+    df.groupby("Field")["Value"].sum().plot.pie(autopct="%1.1f%%", cmap="coolwarm", startangle=90, shadow=True)
+    plt.title("Invoice Data - Pie Chart")
+    st.pyplot(plt)
+
